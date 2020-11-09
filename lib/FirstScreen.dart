@@ -1,5 +1,9 @@
+import 'dart:convert';
+
 import 'package:flutter/material.dart';
 import 'package:barcode_scan/barcode_scan.dart';
+import 'package:http/http.dart' as http;
+import 'package:qr_scanner/dataCards.dart';
 
 class FirstScreen extends StatefulWidget {
   @override
@@ -7,13 +11,73 @@ class FirstScreen extends StatefulWidget {
 }
 
 class _FirstScreenState extends State<FirstScreen> {
-  List<String> listItems;
+  var back_end_url = "http://192.168.1.114:8000/";
+
+  List<String> listItems = ['ليبيانا', 'مادار'];
   List<DropdownMenuItem<String>> _dropdownMenuItems;
   String _selectedItem;
   ScanResult qrResult;
   String barcodeResult;
   final qrController = TextEditingController();
   final barcodeController = TextEditingController();
+  final cardValueController = TextEditingController();
+
+  buildCropDownValues(CardsProvides listvalues) {
+    List<DropdownMenuItem<String>> values = List();
+    for (Providers value in listvalues.providers) {
+      values.add(DropdownMenuItem(child: Text(value.name), value: value.name));
+    }
+    return values;
+  }
+
+  Future<void> getCards() async {
+    var url = back_end_url + "Get_Providers";
+    var result =
+        await http.get(url, headers: {"Content-Type": "application/json"});
+    CardsProvides values = CardsProvides.fromJson(json.decode(result.body));
+    setState(() {
+      _dropdownMenuItems = buildCropDownValues(values);
+    });
+  }
+
+  void createCard() async {
+    print("runing function");
+    if (_selectedItem != "" &&
+        qrController.text != "" &&
+        barcodeController.text != "" &&
+        cardValueController.text != "") {
+      final http.Response response = await http.post(
+        back_end_url + 'Crate_Card',
+        headers: <String, String>{
+          'Content-Type': 'application/json; charset=UTF-8',
+        },
+        body: jsonEncode(<String, String>{
+          'cardType': _selectedItem,
+          'cardValue': cardValueController.text,
+          'qrValue': qrController.text,
+          'barcodeValue': barcodeController.text
+        }),
+      );
+      if (response.statusCode == 201) {
+        // If the server did return a 201 CREATED response,
+        // then parse the JSON.
+        print("this output" + response.body);
+        // return response.statusCode;
+      } else {
+        // If the server did not return a 201 CREATED response,
+        // then throw an exception.
+        print("this output" + response.body);
+        throw Exception('Failed to load album');
+      }
+    }
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    getCards();
+  }
+
   @override
   Widget build(BuildContext context) {
     return Directionality(
@@ -55,6 +119,11 @@ class _FirstScreenState extends State<FirstScreen> {
                 height: 20,
               ),
               TextField(
+                onChanged: (value) async {
+                  cardValueController.text = value;
+                  await createCard();
+                },
+                controller: cardValueController,
                 decoration: InputDecoration(
                   isDense: true,
                   hintText: "قيمة الكرت",
@@ -80,6 +149,10 @@ class _FirstScreenState extends State<FirstScreen> {
                   child: Stack(
                     children: <Widget>[
                       TextField(
+                        onChanged: (value) async {
+                          qrController.text = value;
+                          await createCard();
+                        },
                         controller: qrController,
                         decoration: InputDecoration(
                           isDense: true,
@@ -131,6 +204,9 @@ class _FirstScreenState extends State<FirstScreen> {
                   child: Stack(
                     children: <Widget>[
                       TextField(
+                        onChanged: (value) async {
+                          await createCard();
+                        },
                         controller: barcodeController,
                         decoration: InputDecoration(
                           isDense: true,
